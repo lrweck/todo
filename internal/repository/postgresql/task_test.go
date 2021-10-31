@@ -24,7 +24,7 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 
 	"github.com/lrweck/todo/internal"
-	"github.com/lrweck/todo/internal/postgresql"
+	"github.com/lrweck/todo/internal/repository/postgresql"
 )
 
 func TestTask_Create(t *testing.T) {

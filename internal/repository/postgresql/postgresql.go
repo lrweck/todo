@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/lrweck/todo/internal"
-	"github.com/lrweck/todo/internal/postgresql/db"
+	"github.com/lrweck/todo/internal/repository/postgresql/db"
 )
 
 //go:generate sqlc generate

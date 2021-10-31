@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/lrweck/todo/internal"
-	"github.com/lrweck/todo/internal/postgresql/db"
+	"github.com/lrweck/todo/internal/repository/postgresql/db"
 )
 
 // Task represents the repository used for interacting with Task records.

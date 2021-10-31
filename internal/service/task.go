@@ -32,6 +32,7 @@ type Task struct {
 	search        TaskSearchRepo
 	messageBroker TaskMessageBrokerRepo
 	cb            *circuitbreaker.CircuitBreaker
+	logger        *zap.Logger
 }
 
 func NewTask(logger *zap.Logger,
@@ -43,6 +44,7 @@ func NewTask(logger *zap.Logger,
 		repo:          repo,
 		search:        search,
 		messageBroker: messageBroker,
+		logger:        logger,
 		cb: circuitbreaker.New(
 			circuitbreaker.WithOpenTimeout(time.Minute),
 			circuitbreaker.WithTripFunc(circuitbreaker.NewTripFuncConsecutiveFailures(3)),
@@ -67,6 +69,9 @@ func (t *Task) By(ctx context.Context, args internal.SearchParams) (_ internal.S
 
 	defer func() {
 		err = t.cb.Done(ctx, err)
+		if err != nil {
+			t.logger.Info("circuit breaker tripped", zap.Error(err))
+		}
 	}()
 
 	res, err := t.search.Search(ctx, args)
