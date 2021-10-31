@@ -26,20 +26,20 @@ func NewTask(client *redis.Client) *Task {
 
 // Created publishes a message indicating a task was created.
 func (t *Task) Created(ctx context.Context, task internal.Task) error {
-	return t.publish(ctx, "Task.Created", "tasks.event.created", task)
+	return t.Publish(ctx, "Task.Created", "tasks.event.created", task)
 }
 
 // Deleted publishes a message indicating a task was deleted.
 func (t *Task) Deleted(ctx context.Context, id string) error {
-	return t.publish(ctx, "Task.Deleted", "tasks.event.deleted", id)
+	return t.Publish(ctx, "Task.Deleted", "tasks.event.deleted", id)
 }
 
 // Updated publishes a message indicating a task was updated.
 func (t *Task) Updated(ctx context.Context, task internal.Task) error {
-	return t.publish(ctx, "Task.Updated", "tasks.event.updated", task)
+	return t.Publish(ctx, "Task.Updated", "tasks.event.updated", task)
 }
 
-func (t *Task) publish(ctx context.Context, spanName, channel string, e interface{}) error {
+func (t *Task) Publish(ctx context.Context, spanName, channel string, e interface{}) error {
 	ctx, span := trace.SpanFromContext(ctx).TracerProvider().Tracer("redis").Start(ctx, spanName)
 	defer span.End()
 
