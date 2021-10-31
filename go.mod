@@ -21,6 +21,7 @@ require (
 	github.com/mercari/go-circuitbreaker v0.0.1
 	github.com/ory/dockertest/v3 v3.8.0
 	github.com/rogpeppe/go-internal v1.8.0 // indirect
+	github.com/streadway/amqp v1.0.0 // indirect
 	go.opentelemetry.io/otel v1.1.0
 	go.opentelemetry.io/otel/trace v1.1.0
 	go.uber.org/zap v1.19.1
