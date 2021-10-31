@@ -1,0 +1,146 @@
+package postgresql
+
+import (
+	"context"
+	"errors"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/lrweck/todo/internal"
+	"github.com/lrweck/todo/internal/postgresql/db"
+)
+
+// Task represents the repository used for interacting with Task records.
+type Task struct {
+	q *db.Queries
+}
+
+// NewTask instantiates the Task repository.
+func NewTask(d db.DBTX) *Task {
+	return &Task{
+		q: db.New(d),
+	}
+}
+
+func (t *Task) Create(ctx context.Context, params internal.CreateParams) (internal.Task, error) {
+	ctx, span := trace.SpanFromContext(ctx).TracerProvider().Tracer("postgresql").Start(ctx, "Task.Create")
+	span.SetAttributes(attribute.String("db.system", "postgresql"))
+
+	defer span.End()
+
+	// XXX: `ID` and `IsDone` make no sense when creating new records, that's why those are ignored.
+	// XXX: We are intentionally NOT SUPPORTING `SubTasks` and `Categories` JUST YET.
+
+	id, err := t.q.InsertTask(ctx, db.InsertTaskParams{
+		Description: params.Description,
+		Priority:    newPriority(params.Priority),
+		StartDate:   newNullTime(params.Dates.Start),
+		DueDate:     newNullTime(params.Dates.Due),
+	})
+	if err != nil {
+		return internal.Task{}, internal.WrapErrorf(err, internal.ErrCodeUnknown, "insert task")
+	}
+
+	return internal.Task{
+		ID:          id.String(),
+		Description: params.Description,
+		Priority:    params.Priority,
+		Dates:       params.Dates,
+	}, nil
+}
+
+// Delete deletes the existing record matching the id.
+func (t *Task) Delete(ctx context.Context, id string) error {
+	ctx, span := trace.SpanFromContext(ctx).TracerProvider().Tracer("postgresql").Start(ctx, "Task.Delete")
+	span.SetAttributes(attribute.String("db.system", "postgresql"))
+
+	defer span.End()
+
+	val, err := uuid.Parse(id)
+	if err != nil {
+		return internal.WrapErrorf(err, internal.ErrCodeInvalidArgument, "invalid uuid")
+	}
+
+	_, err = t.q.DeleteTask(ctx, val)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return internal.WrapErrorf(err, internal.ErrCodeNotFound, "task not found")
+		}
+
+		return internal.WrapErrorf(err, internal.ErrCodeUnknown, "delete task")
+	}
+
+	return nil
+}
+
+// Find returns the requested task by searching its id.
+func (t *Task) Find(ctx context.Context, id string) (internal.Task, error) {
+	ctx, span := trace.SpanFromContext(ctx).TracerProvider().Tracer("postgresql").Start(ctx, "Task.Find")
+	span.SetAttributes(attribute.String("db.system", "postgresql"))
+
+	defer span.End()
+
+	val, err := uuid.Parse(id)
+	if err != nil {
+		return internal.Task{}, internal.WrapErrorf(err, internal.ErrCodeInvalidArgument, "invalid uuid")
+	}
+
+	res, err := t.q.SelectTask(ctx, val)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return internal.Task{}, internal.WrapErrorf(err, internal.ErrCodeNotFound, "task not found")
+		}
+
+		return internal.Task{}, internal.WrapErrorf(err, internal.ErrCodeUnknown, "select task")
+	}
+
+	priority, err := convertPriority(res.Priority)
+	if err != nil {
+		return internal.Task{}, internal.WrapErrorf(err, internal.ErrCodeInvalidArgument, "convert priority")
+	}
+
+	return internal.Task{
+		ID:          res.ID.String(),
+		Description: res.Description,
+		Priority:    priority,
+		Dates: internal.Dates{
+			Start: res.StartDate.Time,
+			Due:   res.DueDate.Time,
+		},
+		IsDone: res.Done,
+	}, nil
+}
+
+// Update updates the existing record with new values.
+func (t *Task) Update(ctx context.Context, id string, description string, priority internal.Priority, dates internal.Dates, isDone bool) error {
+	ctx, span := trace.SpanFromContext(ctx).TracerProvider().Tracer("postgresql").Start(ctx, "Task.Update")
+	span.SetAttributes(attribute.String("db.system", "postgresql"))
+
+	defer span.End()
+
+	// XXX: We will revisit the number of received arguments in future episodes.
+	val, err := uuid.Parse(id)
+	if err != nil {
+		return internal.WrapErrorf(err, internal.ErrCodeInvalidArgument, "invalid uuid")
+	}
+
+	if _, err := t.q.UpdateTask(ctx, db.UpdateTaskParams{
+		ID:          val,
+		Description: description,
+		Priority:    newPriority(priority),
+		StartDate:   newNullTime(dates.Start),
+		DueDate:     newNullTime(dates.Due),
+		Done:        isDone,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return internal.WrapErrorf(err, internal.ErrCodeNotFound, "task not found")
+		}
+
+		return internal.WrapErrorf(err, internal.ErrCodeUnknown, "update task")
+	}
+
+	return nil
+}
